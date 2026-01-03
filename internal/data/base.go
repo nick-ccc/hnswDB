@@ -1,4 +1,4 @@
-package algorithim
+package data
 
 import (
 	"github.com/nick-ccc/hnswDB/internal"
@@ -9,8 +9,8 @@ type Pair[T float64, label internal.LabelType] struct {
 	Label    label
 }
 
-type Algorithm[T internal.Number] interface {
-	AddData(
+type VectorDatabase[T internal.Number] interface {
+	AddVector(
 		datapoint []T,
 		label internal.LabelType,
 		replaceDeleted bool,

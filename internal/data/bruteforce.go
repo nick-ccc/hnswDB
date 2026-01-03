@@ -1,4 +1,4 @@
-package algorithim
+package data
 
 import (
 	"fmt"
@@ -16,7 +16,9 @@ type BruteforceSearch[T internal.Number] struct {
 
 	distFunc internal.DistanceFunc[T]
 
-	indexLock          sync.Mutex
+	indexLock sync.Mutex
+
+	// Data labels to index mapper
 	externalToInternal map[internal.LabelType]uint64
 }
 
