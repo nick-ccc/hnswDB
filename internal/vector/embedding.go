@@ -4,7 +4,6 @@ import (
 	"reflect"
 
 	"github.com/nick-ccc/hnswDB/internal"
-	"github.com/nick-ccc/hnswDB/vector"
 )
 
 // EmbeddingSpace is a generic base struct representing an embedding vector space.
@@ -31,7 +30,7 @@ func NewInnerProductSpace[T internal.Number](dim uint64) *EmbeddingSpace[T] {
 	return &EmbeddingSpace[T]{
 		dimensionality: dim,
 		sizeVector:     dim * uint64(reflect.TypeOf(zero).Size()),
-		distanceFunc:   vector.EuclideanDistance()[T],
+		distanceFunc:   EuclideanDistance[T],
 	}
 }
 
@@ -40,6 +39,6 @@ func NewCosineSimilaritySpace[T internal.Number](dim uint64) *EmbeddingSpace[T] 
 	return &EmbeddingSpace[T]{
 		dimensionality: dim,
 		sizeVector:     dim * uint64(reflect.TypeOf(zero).Size()),
-		distanceFunc:   vector.CosineSimilarity()[T],
+		distanceFunc:   CosineSimilarity[T],
 	}
 }

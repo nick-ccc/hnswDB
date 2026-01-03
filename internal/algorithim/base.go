@@ -9,8 +9,8 @@ type Pair[T float64, label internal.LabelType] struct {
 	Label    label
 }
 
-type AlgorithmInterface[T internal.Number] interface {
-	AddVector(
+type Algorithm[T internal.Number] interface {
+	AddData(
 		datapoint []T,
 		label internal.LabelType,
 		replaceDeleted bool,
@@ -27,4 +27,8 @@ type AlgorithmInterface[T internal.Number] interface {
 	) []Pair[float64, internal.LabelType]
 
 	SaveIndex(location string) error
+}
+
+func storeInMemory[T internal.Number](data []T) error {
+	return nil
 }

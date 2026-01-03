@@ -12,7 +12,7 @@ func validityCheck[T internal.Number](vector_a, vector_b []T) error {
 
 	if len(vector_a) != len(vector_b) {
 		return fmt.Errorf(
-			fmt.Sprintf(
+			"%s", fmt.Sprintf(
 				"Arrays must have same length, a: %d, b %d", len(vector_a), len(vector_b),
 			),
 		)
