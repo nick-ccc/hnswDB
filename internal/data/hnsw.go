@@ -6,51 +6,117 @@ import (
 	"github.com/nick-ccc/hnswDB/internal"
 )
 
-// shoulder layer be its own struct???
+type HNSWNodeID uint32
+type LayerInt uint16
+
 type node[T internal.Number] struct {
-	key          internal.LabelType
-	value        []T
-	highestLayer uint16
-	// map of pointers to other Nodes
-	neighbors map[internal.LabelType]*node[T]
+	ID			 HNSWNodeID
+	Key          internal.LabelType
+	Value        []T
+	HighestLayer LayerInt
 }
 
 func makeNode[T internal.Number](
 	key internal.LabelType,
 	vec []T,
-	maxLayer uint16,
+	maxLayer LayerInt,
 	ascent_probability float64,
 ) node[T] {
-	var level uint16
+	var level LayerInt
 	for rand.Float64() < prob && level < maxLevel {
         level++
     }
-
 	return node[T]{
-		key:          key,
-		value:        vec,
-		highestLayer: level,
-		neighbors:    nil,
+		Key:          key,
+		Value:        vec,
+		HighestLayer: level,
 	}
 }
 
-type LayeredGraph[T internal.Number] struct {
-	maxConnections uint16
-	elementLevels  []uint16
+type nodeAdjacency[T internal.Number] struct {
+	Neighbors []node[T]
+}
+
+type layerAdjacency[T internal.Number] struct {
+	Layers []nodeAdjacency[T]
 }
 
 type HNSW[T internal.Number] struct {
-	// Specific to graph layers
-	entryPoint     *node[T]
-	maxNeighbors   uint16 // Max neighbors per node
-	efConstruction uint16 // Number of candidate NN during build
-	nodes          map[internal.LabelType]*node[T]
+	// private
+	entryPoint     	*node[T]
+	efConstruction 	uint16 // Number of candidate ANN during build
+	nodes          	[]layerAdjacency[T]
+	mutex       	sync.Mutex
 
-	maxElements     uint64
-	curElementCount uint64
-	dataDimensions  uint64
-	distFunc        internal.DistanceFunc[T]
-	indexLock       sync.Mutex
+	// public
+	MaxElements     uint64
+	CurElementCount uint64
+	EmbeddingSpace  EmbeddingSpace[T]
+	MaxNeighbors    uint16 // Max neighbors per node
+}
+
+func (h *HNSW[T]) getNeighborsAtLevel(
+	nodeID HNSWNodeID,
+	layer LayerInt,
+) []node {
+	if layer < 0 || int(HNSWNodeID) >= len(h.nodes) {
+		return nil
+	}
+
+	node := h.nodes[nodeID]
+	if layer >= len(node.HighestLayer) {
+		return nil
+	}
+
+	return node.Layers[layer].Neighbors
+}
+
+// Search later provides base search mechanics
+func (h *HNSW[T])searchLayer(
+	data_point []T,
+	layer LayerInt,
+) (MaxHeapSearch, error) {
+
+	// Map of visited labels
+	visitedList = make(map[internal.LabelType]struct{})
+
+	// Init heaps for ANN search
+	currentCandidates := make(MinHeapSearch, 0)
+	topCandidates := make(MaxHeapSearch, 0)
+	heap.init(&currentCandidates)
+	heap.init(&topCandidates)
+
+	// Maintain lower bound for search exploration
+	lowerBound := h.EmbeddingSpace.DistanceFunc(data_point, h.entryPoint)
+
+	// Generate initial candidate and push to heaps
+	currCandidate := Candidate {Dist: lowerBound, Key: h.entryPoint.key}
+	heap.Push(&topCandidates, currCandidate)
+	heap.Push(&currentCandidates, currCandidate)
+	visitedList[h.entryPoint.key] = struct{}{}
+
+	for len(currentCandidates) > 0 {
+		currCandidate = currentCandidates[0]
+		if currCandidate.Dist > lowerBound && topCandidates.Len() == h.efConstruction {
+			// Exit condition if distance of next candidate is smaller than what is 
+			// currently in ANN heap, and heap is full (equal to ef construction)
+			break
+		}
+		heap.pop(&currentCandidates)
+		currentCandidateKey := currCandidate.Key
+
+		// Lock index while searching
+		h.mutex.Lock()
+
+		if layer == 0 {
+			continue 
+		} else {
+			// Working on layout here
+		}
+		
+		for 
+		distance := h.embeddingSpace.DistanceFunc()
+	}
 }
 
 func (h *HNSW[T]) addNeighbors(
