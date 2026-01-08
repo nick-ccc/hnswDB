@@ -3,7 +3,7 @@ package data
 import "github.com/nick-ccc/hnswDB/internal"
 
 type Candidate struct {
-	Dist float32
+	Dist float64
 	Key  internal.LabelType
 }
 
@@ -21,6 +21,15 @@ func (h *MinHeapSearch) Pop() interface{} {
 	*h = old[:n-1]
 	return x
 }
+func (h MinHeapSearch) Max() Candidate {
+	max := h[0]
+	for _, c := range h {
+		if c.Dist > max.Dist {
+			max = c
+		}
+	}
+	return max
+}
 
 // Max-heap (by Dist)
 type MaxHeapSearch []Candidate
@@ -35,4 +44,14 @@ func (h *MaxHeapSearch) Pop() interface{} {
 	x := old[n-1]
 	*h = old[:n-1]
 	return x
+}
+
+func (h MaxHeapSearch) Min() Candidate {
+	min := h[0]
+	for _, c := range h {
+		if c.Dist < min.Dist {
+			min = c
+		}
+	}
+	return min
 }
