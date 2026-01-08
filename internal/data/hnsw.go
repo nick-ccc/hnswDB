@@ -2,6 +2,7 @@ package data
 
 import (
 	"container/heap"
+	"fmt"
 	"math/rand/v2"
 	"sort"
 	"sync"
@@ -75,16 +76,6 @@ func (h *HNSW[T]) getNodeIDFromLabel(
 	return 0, false
 }
 
-func (h *HNSW[T]) getNodeLayersFull(
-	label internal.LabelType,
-) *nodeLayerAdjacency[T] {
-	nodeID, exist := h.getNodeIDFromLabel(label)
-	if exist {
-		return &h.nodes[nodeID]
-	}
-	return nil
-}
-
 func (h *HNSW[T]) getNodeLayerAdjacency(
 	label internal.LabelType,
 	layer LayerInt,
@@ -123,13 +114,13 @@ func (h *HNSW[T]) searchLayer(
 	heap.Init(&topCandidates)
 
 	// Maintain lower bound for search exploration
-	lowerBound, error := h.EmbeddingSpace.DistanceFunc(inputVector, h.entryPoint.Vector)
+	lowerBound, error := h.EmbeddingSpace.DistanceFunc(inputVector, entryPoint.Vector)
 	if error != nil {
 		return nil, error
 	}
 
 	// Generate initial candidate and push to heaps
-	currCandidate := Candidate{Dist: lowerBound, Key: h.entryPoint.Key}
+	currCandidate := Candidate{Dist: lowerBound, Key: entryPoint.Key}
 	heap.Push(&topCandidates, currCandidate)
 	heap.Push(&currentCandidates, currCandidate)
 
@@ -211,4 +202,15 @@ func (h *HNSW[T]) Search(
 	}
 
 	return result
+}
+
+func (h *HNSW[T]) Add(
+	inputVector []T,
+) error {
+	if h.CurElementCount == h.MaxElements {
+		return fmt.Errorf("HNSW has maximum node capacity")
+	}
+
+	// ToDO
+	return nil
 }
