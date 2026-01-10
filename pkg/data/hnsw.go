@@ -8,33 +8,30 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/nick-ccc/hnswDB/internal"
-	"github.com/nick-ccc/hnswDB/internal/vector"
+	"github.com/nick-ccc/hnswDB/pkg"
+	"github.com/nick-ccc/hnswDB/pkg/vector"
 )
 
-type HNSWNodeID uint32
-type LayerInt int32
-
 // Node
-type Node[T internal.Number] struct {
-	Key          internal.LabelType
+type Node[T pkg.Number] struct {
+	Key          pkg.LabelType
 	Vector       []T
-	HighestLayer LayerInt
+	HighestLayer int
 }
 
 // Used for inputting vectors top become nodes
-type InputPairing[T internal.Number] struct {
+type InputPairing[T pkg.Number] struct {
 	Vector []T
-	Key    internal.LabelType
+	Key    pkg.LabelType
 }
 
-func makeNode[T internal.Number](
-	key internal.LabelType,
+func makeNode[T pkg.Number](
+	key pkg.LabelType,
 	vec []T,
-	maxNumLayers LayerInt,
+	maxNumLayers int,
 	ascent_probability float64,
 ) Node[T] {
-	var level LayerInt
+	var level int
 	for rand.Float64() < ascent_probability && level < maxNumLayers-1 {
 		level++
 	}
@@ -46,12 +43,12 @@ func makeNode[T internal.Number](
 }
 
 // List of closet Nodes, per Node, per layer
-type nodeAdjacency[T internal.Number] struct {
+type nodeAdjacency[T pkg.Number] struct {
 	Neighbors []*Node[T]
 }
 
 // Complete list of all layers that node makes connections to
-type nodeLayerAdjacency[T internal.Number] struct {
+type nodeLayerAdjacency[T pkg.Number] struct {
 	Node   *Node[T]
 	Layers []nodeAdjacency[T]
 }
@@ -59,8 +56,8 @@ type nodeLayerAdjacency[T internal.Number] struct {
 func (n *nodeLayerAdjacency[T]) addNeighbor(
 	newNode *Node[T],
 	maxNeighbors int,
-	layer LayerInt,
-	dist internal.DistanceFunc[T],
+	layer int,
+	dist pkg.DistanceFunc[T],
 ) error {
 	neighbors := &n.Layers[layer].Neighbors
 	if *neighbors == nil {
@@ -100,30 +97,56 @@ func (n *nodeLayerAdjacency[T]) addNeighbor(
 	return nil
 }
 
-type HNSW[T internal.Number] struct {
+type HNSW[T pkg.Number] struct {
 	// private
-	entryPoint     *Node[T]
-	efConstruction int // Number of candidate ANN during build
-	efSearch       int // max limit to search candidates
-	maxNumLayers   LayerInt
-	ascentProb     float64
-
-	// All nodes
+	entryPoint         *Node[T]
 	nodes              []*nodeLayerAdjacency[T] // each idx corresponds to matching ID
-	nodeLookup         map[internal.LabelType]HNSWNodeID
-	reverseLayerLookup map[LayerInt][]HNSWNodeID
+	nodeLookup         map[pkg.LabelType]uint32
+	reverseLayerLookup map[int][]uint32
 	mutex              sync.Mutex
 
 	// public
-	MaxElements     HNSWNodeID
-	CurElementCount HNSWNodeID
-	EmbeddingSpace  vector.EmbeddingSpace[T]
+	EfConstruction  int // Number of candidate ANN during build
+	EfSearch        int // max limit to search candidates
+	MaxNumLayers    int
+	AscentProb      float64
+	MaxElements     uint32
+	CurElementCount uint32
+	EmbeddingSpace  *vector.EmbeddingSpace[T]
 	MaxNeighbors    int // Max neighbors per node
 }
 
+func MakeHNSWEuclidean[T pkg.Number](
+	efConstruction int,
+	efSearch int,
+	maxNumLayers int,
+	ascentProb float64,
+	maxElements uint32,
+	dimensions uint64,
+	maxNeighbors int,
+) HNSW[T] {
+	embeddingSpace := vector.NewEuclideanSpace[T](dimensions)
+
+	return HNSW[T]{
+		entryPoint:         nil,
+		nodes:              []*nodeLayerAdjacency[T]{},
+		nodeLookup:         make(map[pkg.LabelType]uint32),
+		reverseLayerLookup: make(map[int][]uint32),
+		mutex:              sync.Mutex{},
+		EfConstruction:     efConstruction,
+		EfSearch:           efSearch,
+		MaxNumLayers:       maxNumLayers,
+		AscentProb:         ascentProb,
+		MaxElements:        maxElements,
+		CurElementCount:    0,
+		EmbeddingSpace:     embeddingSpace,
+		MaxNeighbors:       maxNeighbors,
+	}
+}
+
 func (h *HNSW[T]) getNodeIDFromLabel(
-	label internal.LabelType,
-) (HNSWNodeID, bool) {
+	label pkg.LabelType,
+) (uint32, bool) {
 	if nodeID, exist := h.nodeLookup[label]; exist {
 		return nodeID, true
 	}
@@ -131,8 +154,8 @@ func (h *HNSW[T]) getNodeIDFromLabel(
 }
 
 func (h *HNSW[T]) getNodeAdjacency(
-	label internal.LabelType,
-	layer LayerInt,
+	label pkg.LabelType,
+	layer int,
 ) *nodeAdjacency[T] {
 	nodeID, exist := h.getNodeIDFromLabel(label)
 	if exist {
@@ -142,7 +165,7 @@ func (h *HNSW[T]) getNodeAdjacency(
 }
 
 func (h *HNSW[T]) getNodeLayerAdjacency(
-	label internal.LabelType,
+	label pkg.LabelType,
 ) *nodeLayerAdjacency[T] {
 	nodeID, exist := h.getNodeIDFromLabel(label)
 	if exist {
@@ -152,7 +175,7 @@ func (h *HNSW[T]) getNodeLayerAdjacency(
 }
 
 func (h *HNSW[T]) getNode(
-	label internal.LabelType,
+	label pkg.LabelType,
 ) *Node[T] {
 	nodeID, exist := h.getNodeIDFromLabel(label)
 	if exist {
@@ -162,7 +185,7 @@ func (h *HNSW[T]) getNode(
 }
 
 func (h *HNSW[T]) getRandomEntryFromLayer(
-	layer LayerInt,
+	layer int,
 ) *Node[T] {
 	if _, exists := h.reverseLayerLookup[layer]; exists {
 		return nil
@@ -179,12 +202,12 @@ func (h *HNSW[T]) getRandomEntryFromLayer(
 // Search layer provides base search mechanics
 func (h *HNSW[T]) searchLayer(
 	inputVector []T,
-	layer LayerInt,
+	layer int,
 	entryPoint *Node[T],
 ) (MaxHeapSearch, error) {
 
 	// Map of visited labels
-	visitedMap := make(map[internal.LabelType]struct{})
+	visitedMap := make(map[pkg.LabelType]struct{})
 
 	// Init heaps for ANN search
 	currentCandidates := make(MinHeapSearch, 0)
@@ -208,7 +231,7 @@ func (h *HNSW[T]) searchLayer(
 
 	for currentCandidates.Len() > 0 {
 		currCandidate = currentCandidates[0]
-		if currCandidate.Dist > lowerBound && topCandidates.Len() == int(h.efConstruction) {
+		if currCandidate.Dist > lowerBound && topCandidates.Len() == int(h.EfConstruction) {
 			// Exit condition if distance of next candidate is smaller than what is
 			// currently in ANN heap, and heap is full (equal to ef construction)
 			break
@@ -232,7 +255,7 @@ func (h *HNSW[T]) searchLayer(
 			}
 
 			// Check if current node is potential candidate
-			if topCandidates.Len() < int(h.efConstruction) || lowerBound > distance {
+			if topCandidates.Len() < int(h.EfConstruction) || lowerBound > distance {
 				// either top candidate list is not full or new distance is smallest yet
 				lowerBound = topCandidates[0].Dist
 				newCandidate := Candidate{Dist: distance, Key: neighborNode.Key}
@@ -240,11 +263,11 @@ func (h *HNSW[T]) searchLayer(
 				heap.Push(&currentCandidates, newCandidate)
 
 				// Keep top candidates size less than or equal to efConstruction
-				if topCandidates.Len() > int(h.efConstruction) {
+				if topCandidates.Len() > int(h.EfConstruction) {
 					heap.Pop(&topCandidates)
 				}
 
-				if currentCandidates.Len() > int(h.efSearch) {
+				if currentCandidates.Len() > int(h.EfSearch) {
 					// Implement in future
 				}
 			}
@@ -262,7 +285,7 @@ func (h *HNSW[T]) Search(
 	var error error
 	entryPoint := h.entryPoint
 
-	for currentLayer := h.maxNumLayers - 1; currentLayer >= 0; currentLayer-- {
+	for currentLayer := h.MaxNumLayers - 1; currentLayer >= 0; currentLayer-- {
 		topCandidates, error = h.searchLayer(inputVector, currentLayer, entryPoint)
 		if error != nil {
 			return nil, error
@@ -276,7 +299,7 @@ func (h *HNSW[T]) Search(
 		return topCandidates[i].Key < topCandidates[j].Key
 	})
 
-	result := make([]Node[T], 0, min(k, int(h.efConstruction)))
+	result := make([]Node[T], 0, min(k, int(h.EfConstruction)))
 	for _, x := range topCandidates {
 		result = append(result, *h.getNode(x.Key))
 	}
@@ -313,8 +336,8 @@ func (h *HNSW[T]) Add(
 		node := makeNode(
 			item.Key,
 			item.Vector,
-			h.maxNumLayers,
-			h.ascentProb,
+			h.MaxNumLayers,
+			h.AscentProb,
 		)
 		nodeLayered := nodeLayerAdjacency[T]{
 			Node:   &node,
@@ -342,7 +365,7 @@ func (h *HNSW[T]) Add(
 			if err != nil {
 				invalidMessages = append(
 					invalidMessages,
-					fmt.Sprintf("Internal issue during search on input: %d", idx),
+					fmt.Sprintf("pkg issue during search on input: %d", idx),
 				)
 				continue
 			}

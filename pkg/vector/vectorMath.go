@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/nick-ccc/hnswDB/internal"
+	"github.com/nick-ccc/hnswDB/pkg"
 )
 
 // Check for valid inputs
-func validityCheck[T internal.Number](vector_a, vector_b []T) error {
+func validityCheck[T pkg.Number](vector_a, vector_b []T) error {
 
 	if len(vector_a) != len(vector_b) {
 		return fmt.Errorf(
@@ -22,7 +22,7 @@ func validityCheck[T internal.Number](vector_a, vector_b []T) error {
 }
 
 // Computes dot product result of two input vectors
-func dotProduct[T internal.Number](vector_a, vector_b []T) float64 {
+func dotProduct[T pkg.Number](vector_a, vector_b []T) float64 {
 	// assumes same length
 	var result T
 	for idx := range vector_a {
@@ -32,13 +32,13 @@ func dotProduct[T internal.Number](vector_a, vector_b []T) float64 {
 }
 
 // Computes norm of input vector
-func vectorNorm[T internal.Number](v []T) float64 {
+func vectorNorm[T pkg.Number](v []T) float64 {
 	return math.Sqrt(dotProduct(v, v))
 }
 
 // EuclideanDistance computes the L2 (Euclidean) distance
 // between two vectors.
-func EuclideanDistance[T internal.Number](vector_a, vector_b []T) (float64, error) {
+func EuclideanDistance[T pkg.Number](vector_a, vector_b []T) (float64, error) {
 	error := validityCheck(vector_a, vector_b)
 	if error != nil {
 		return -1.0, error
@@ -54,7 +54,7 @@ func EuclideanDistance[T internal.Number](vector_a, vector_b []T) (float64, erro
 
 // CosineDistance computes the cosine distance (1 - cosine similarity)
 // between two vectors.
-func CosineSimilarity[T internal.Number](vector_a, vector_b []T) (float64, error) {
+func CosineSimilarity[T pkg.Number](vector_a, vector_b []T) (float64, error) {
 	error := validityCheck(vector_a, vector_b)
 	if error != nil {
 		return -1.0, error

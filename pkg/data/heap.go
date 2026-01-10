@@ -1,10 +1,10 @@
 package data
 
-import "github.com/nick-ccc/hnswDB/internal"
+import "github.com/nick-ccc/hnswDB/pkg"
 
 type Candidate struct {
 	Dist float64
-	Key  internal.LabelType
+	Key  pkg.LabelType
 }
 
 // Min-heap (by Dist)
