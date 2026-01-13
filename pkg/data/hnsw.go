@@ -101,8 +101,8 @@ type HNSW[T pkg.Number] struct {
 	// private
 	entryPoint         *Node[T]
 	nodes              []*nodeLayerAdjacency[T] // each idx corresponds to matching ID
-	nodeLookup         map[pkg.LabelType]uint32
-	reverseLayerLookup map[int][]uint32
+	nodeLookup         map[pkg.LabelType]int
+	reverseLayerLookup map[int][]int
 	mutex              sync.Mutex
 
 	// public
@@ -110,8 +110,8 @@ type HNSW[T pkg.Number] struct {
 	EfSearch        int // max limit to search candidates
 	MaxNumLayers    int
 	AscentProb      float64
-	MaxElements     uint32
-	CurElementCount uint32
+	MaxElements     int
+	CurElementCount int
 	EmbeddingSpace  *vector.EmbeddingSpace[T]
 	MaxNeighbors    int // Max neighbors per node
 }
@@ -121,7 +121,7 @@ func MakeHNSWEuclidean[T pkg.Number](
 	efSearch int,
 	maxNumLayers int,
 	ascentProb float64,
-	maxElements uint32,
+	maxElements int,
 	dimensions uint64,
 	maxNeighbors int,
 ) HNSW[T] {
@@ -130,8 +130,8 @@ func MakeHNSWEuclidean[T pkg.Number](
 	return HNSW[T]{
 		entryPoint:         nil,
 		nodes:              []*nodeLayerAdjacency[T]{},
-		nodeLookup:         make(map[pkg.LabelType]uint32),
-		reverseLayerLookup: make(map[int][]uint32),
+		nodeLookup:         make(map[pkg.LabelType]int),
+		reverseLayerLookup: make(map[int][]int),
 		mutex:              sync.Mutex{},
 		EfConstruction:     efConstruction,
 		EfSearch:           efSearch,
@@ -146,7 +146,7 @@ func MakeHNSWEuclidean[T pkg.Number](
 
 func (h *HNSW[T]) getNodeIDFromLabel(
 	label pkg.LabelType,
-) (uint32, bool) {
+) (int, bool) {
 	if nodeID, exist := h.nodeLookup[label]; exist {
 		return nodeID, true
 	}
@@ -187,16 +187,44 @@ func (h *HNSW[T]) getNode(
 func (h *HNSW[T]) getRandomEntryFromLayer(
 	layer int,
 ) *Node[T] {
-	if _, exists := h.reverseLayerLookup[layer]; exists {
+	neighbors := &h.reverseLayerLookup
+	if _, exists := (*neighbors)[layer]; !exists {
 		return nil
 	}
 
-	if len(h.reverseLayerLookup[layer]) > 0 {
-		randID := rand.IntN(len(h.reverseLayerLookup[layer]))
+	lenNeighbors := len((*neighbors)[layer])
+	if lenNeighbors > 0 {
+		randIdx := rand.IntN(lenNeighbors)
+		randID := (*neighbors)[layer][randIdx]
 		return h.nodes[randID].Node
 	}
 
 	return nil
+}
+
+func (h *HNSW[T]) makeNode(
+	key pkg.LabelType,
+	vec []T,
+) *Node[T] {
+	if h.entryPoint != nil {
+		// Generate Node at random level
+		node := makeNode(
+			key,
+			vec,
+			h.MaxNumLayers,
+			h.AscentProb,
+		)
+		return &node
+	}
+	// Otherwise it is first node, assert ascent to highest layer
+	// and set as naive entrypoint
+	entrypoint := &Node[T]{
+		Key:          key,
+		Vector:       vec,
+		HighestLayer: h.MaxNumLayers - 1,
+	}
+	h.entryPoint = entrypoint
+	return entrypoint
 }
 
 // Search layer provides base search mechanics
@@ -296,7 +324,7 @@ func (h *HNSW[T]) Search(
 	}
 
 	sort.Slice(topCandidates, func(i, j int) bool {
-		return topCandidates[i].Key < topCandidates[j].Key
+		return topCandidates[i].Dist < topCandidates[j].Dist
 	})
 
 	result := make([]Node[T], 0, min(k, int(h.EfConstruction)))
@@ -333,31 +361,31 @@ func (h *HNSW[T]) Add(
 		}
 
 		// generate node
-		node := makeNode(
+		// @ note it would be better to do this in for loop below,
+		// but if you start at layer 4, and index then it will error
+		// could make the for loop ascending but this is inverse
+		// to how searching would be done in production hnsw
+		node := h.makeNode(
 			item.Key,
 			item.Vector,
-			h.MaxNumLayers,
-			h.AscentProb,
 		)
 		nodeLayered := nodeLayerAdjacency[T]{
-			Node:   &node,
-			Layers: []nodeAdjacency[T]{},
+			Node:   node,
+			Layers: make([]nodeAdjacency[T], node.HighestLayer+1),
+		}
+		for i := range nodeLayered.Layers {
+			nodeLayered.Layers[i] = nodeAdjacency[T]{
+				Neighbors: []*Node[T]{},
+			}
 		}
 
 		// @Note node.HighestLayer is already 0 indexed
 		for layer := node.HighestLayer; layer >= 0; layer-- {
-			entryPoint := h.getRandomEntryFromLayer(layer)
 
+			entryPoint := h.getRandomEntryFromLayer(layer)
 			if entryPoint == nil {
 				// It is the only node in the layer
 				// thus prepend empty adjacency
-				adjacency := nodeAdjacency[T]{
-					Neighbors: []*Node[T]{},
-				}
-				nodeLayered.Layers = append(
-					[]nodeAdjacency[T]{adjacency},
-					nodeLayered.Layers...,
-				)
 				continue
 			}
 
@@ -383,7 +411,7 @@ func (h *HNSW[T]) Add(
 					h.EmbeddingSpace.DistanceFunc,
 				)
 				candidateLayer.addNeighbor(
-					&node,
+					node,
 					h.MaxNeighbors,
 					layer,
 					h.EmbeddingSpace.DistanceFunc,
@@ -393,13 +421,13 @@ func (h *HNSW[T]) Add(
 		}
 
 		// Lock mutex while generating unique ID
-		// Add ID to lookup table
+		// Add ID to lookup table, then increment node count
 		h.mutex.Lock()
-		h.CurElementCount++
 		id := h.CurElementCount
 		h.nodeLookup[item.Key] = id
+		h.CurElementCount++
 		for i := node.HighestLayer; i >= 0; i-- {
-			h.reverseLayerLookup[node.HighestLayer] = append(
+			h.reverseLayerLookup[i] = append(
 				h.reverseLayerLookup[i],
 				id,
 			)

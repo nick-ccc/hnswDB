@@ -1,10 +1,22 @@
-# HNSWDB
+<h1 align="center">HNSWDB</h1>
+<p align="center">
+  <a href="https://www.elastic.co/search-labs/blog/hnsw-graph">
+    <img 
+        src=".assets/hnsw.png"  
+        alt="Gopher Doc" 
+        width="400" 
+    />
+  </a>
+</p>
 
-Implementation of the Hierarchical Navigable Small World Data structure in GoLang. Inspired by the Hnswlib C++ header only library, with supplementation to my own AI/ML graduate degree education.
+<p align="center">
+  <a href="https://pkg.go.dev/github.com/coder/hnsw@main?utm_source=godoc">
+    <img src="https://godoc.org/github.com/golang/gddo?status.svg" alt="website"/>
+  </a>
+</p>
 
-> [!NOTE]
-> This is purely for educational purposes and is a work in progress. 
-> While it demonstrates the core concepts and algorithms, it is not optimized for production use.
+
+Implementation of the Hierarchical Navigable Small World Data structure in GoLang. Inspired by the Hnswlib C++ header only library, with supplementation to my own AI/ML graduate degree education. This is repository is purely for educational purposes and is a work in progress. While it demonstrates the core concepts and algorithms, it is not optimized for production use.
 
 
 ## Overview
@@ -13,9 +25,11 @@ WIP
 
 
 ## References
-- Yu A. Malkov and D. A. Yashunin. 2020. Efficient and Robust Approximate Nearest Neighbor Search Using Hierarchical Navigable Small World Graphs. IEEE Trans. Pattern Anal. Mach. Intell. 42, 4 (April 2020), 824–836. https://doi.org/10.1109/TPAMI.2018.2889473
-- https://github.com/nmslib/hnswlib/tree/master
-- https://github.com/coder/hnsw/tree/main
+- *Papers*
+  - Yu A. Malkov and D. A. Yashunin. 2020. Efficient and Robust Approximate Nearest Neighbor Search Using Hierarchical Navigable Small World Graphs. IEEE Trans. Pattern Anal. Mach. Intell. 42, 4 (April 2020), 824–836. https://doi.org/10.1109/TPAMI.2018.2889473
+- *Code Inspiration*
+  - https://github.com/nmslib/hnswlib/tree/master
+  - https://github.com/coder/hnsw/tree/main
 
 
 
